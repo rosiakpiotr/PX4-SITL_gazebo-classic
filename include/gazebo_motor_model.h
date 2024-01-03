@@ -29,7 +29,6 @@
 #include "CommandPitchAngle.pb.h"
 #include "gazebo/transport/transport.hh"
 #include "Float.pb.h"
-#include "Wind.pb.h"
 
 #include "common.h"
 
@@ -47,11 +46,11 @@ static const std::string kDefaultCommandSubTopic = "/gazebo/command/motor_speed"
 static const std::string kDefaultCommandVppSubTopic = "/gazebo/command/pitch_angle";
 static const std::string kDefaultMotorFailureNumSubTopic = "/gazebo/motor_failure_num";
 static const std::string kDefaultMotorVelocityPubTopic = "/motor_speed";
-static const std::string wind_sub_topic_ = "/world_wind";
+static const std::string wind_sub_topic_ = "/wind";
 
 typedef const boost::shared_ptr<const mav_msgs::msgs::CommandMotorSpeed> CommandMotorSpeedPtr;
 typedef const boost::shared_ptr<const mav_msgs::msgs::CommandPitchAngle> CommandPitchAnglePtr;
-typedef const boost::shared_ptr<const physics_msgs::msgs::Wind> WindPtr;
+typedef const boost::shared_ptr<const msgs::Wind> WindPtr;
 
 /*
 // Protobuf test
@@ -145,7 +144,7 @@ private:
     void PitchAngleCallback(CommandPitchAnglePtr &pitch_angles);
     void MotorFailureCallback(const boost::shared_ptr<const msgs::Int>
                               &fail_msg); /*!< Callback for the motor_failure_sub_ subscriber */
-    void WindVelocityCallback(const boost::shared_ptr<const physics_msgs::msgs::Wind> &msg);
+    void WindVelocityCallback(WindPtr &msg);
 
     std::unique_ptr<FirstOrderFilter<double>> rotor_velocity_filter_;
     std::unique_ptr<FirstOrderFilter<double>> vpp_angle_filter_;
