@@ -18,10 +18,6 @@
  * limitations under the License.
  */
 
-
-
-#include <stdio.h>
-
 #include <boost/bind.hpp>
 #include <Eigen/Eigen>
 #include <gazebo/gazebo.hh>
@@ -30,29 +26,31 @@
 #include <gazebo/common/Plugin.hh>
 #include <rotors_model/motor_model.hpp>
 #include "CommandMotorSpeed.pb.h"
+#include "CommandPitchAngle.pb.h"
 #include "gazebo/transport/transport.hh"
-#include "gazebo/msgs/msgs.hh"
-#include "MotorSpeed.pb.h"
 #include "Float.pb.h"
 #include "Wind.pb.h"
 
 #include "common.h"
 
-
-namespace turning_direction {
+namespace turning_direction
+{
 const static int CCW = 1;
-const static int CW = -1;
+const static int CW = -1; // NOLINT
 }
 
-namespace gazebo {
+namespace gazebo
+{
 // Default values
-static const std::string kDefaultNamespace = "";
+static const std::string kDefaultNamespace;
 static const std::string kDefaultCommandSubTopic = "/gazebo/command/motor_speed";
+static const std::string kDefaultCommandVppSubTopic = "/gazebo/command/pitch_angle";
 static const std::string kDefaultMotorFailureNumSubTopic = "/gazebo/motor_failure_num";
 static const std::string kDefaultMotorVelocityPubTopic = "/motor_speed";
-std::string wind_sub_topic_ = "/world_wind";
+static const std::string wind_sub_topic_ = "/world_wind";
 
 typedef const boost::shared_ptr<const mav_msgs::msgs::CommandMotorSpeed> CommandMotorSpeedPtr;
+typedef const boost::shared_ptr<const mav_msgs::msgs::CommandPitchAngle> CommandPitchAnglePtr;
 typedef const boost::shared_ptr<const physics_msgs::msgs::Wind> WindPtr;
 
 /*
@@ -72,83 +70,114 @@ static constexpr double kDefaultRotorDragCoefficient = 1.0e-4;
 static constexpr double kDefaultRollingMomentCoefficient = 1.0e-6;
 static constexpr double kDefaultRotorVelocitySlowdownSim = 10.0;
 
-class GazeboMotorModel : public MotorModel, public ModelPlugin {
- public:
-  GazeboMotorModel()
-      : ModelPlugin(),
-        MotorModel() {
-  }
+class GazeboMotorModel : public MotorModel, public ModelPlugin
+{
+public:
+    GazeboMotorModel()
+    {
+    }
 
-  virtual ~GazeboMotorModel();
+    ~GazeboMotorModel() override;
 
-  virtual void InitializeParams();
-  virtual void Publish();
-  //void testProto(MotorSpeedPtr &msg);
- protected:
-  virtual void UpdateForcesAndMoments();
-  /// \brief A function to check the motor_Failure_Number_ and stimulate motor fail
-  /// \details Doing joint_->SetVelocity(0,0) for the flagged motor to fail
-  virtual void UpdateMotorFail();
-  virtual void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf);
-  virtual void OnUpdate(const common::UpdateInfo & /*_info*/);
+    void InitializeParams() override;
+    void Publish() override;
+    // void testProto(MotorSpeedPtr &msg);
+protected:
+    void UpdateForcesAndMoments() override;
+    /// \brief A function to check the motor_Failure_Number_ and stimulate motor fail
+    /// \details Doing joint_->SetVelocity(0,0) for the flagged motor to fail
+    virtual void UpdateMotorFail();
+    void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) override;
+    virtual void OnUpdate(const common::UpdateInfo & /*_info*/);
 
- private:
-  std::string command_sub_topic_{kDefaultCommandSubTopic};
-  std::string motor_failure_sub_topic_{kDefaultMotorFailureNumSubTopic};
-  std::string joint_name_;
-  std::string link_name_;
-  std::string motor_speed_pub_topic_{kDefaultMotorVelocityPubTopic};
-  std::string namespace_;
+private:
+    std::string command_sub_topic_{kDefaultCommandSubTopic};
+    std::string command_vpp_sub_topic_{kDefaultCommandVppSubTopic};
+    std::string motor_failure_sub_topic_{kDefaultMotorFailureNumSubTopic};
+    std::string joint_name_;
+    std::string link_name_;
+    std::string motor_speed_pub_topic_{kDefaultMotorVelocityPubTopic};
+    std::string namespace_;
 
-  int motor_number_{0};
-  int turning_direction_{turning_direction::CW};
+    int motor_number_{0};
+    int turning_direction_{turning_direction::CW};
 
-  int motor_Failure_Number_{0}; /*!< motor_Failure_Number is (motor_number_ + 1) as (0) is considered no_fail. Publish accordingly */
-  int tmp_motor_num; // A temporary variable used to print msg
+    int motor_Failure_Number_{0}; /*!< motor_Failure_Number is (motor_number_ + 1) as (0) is considered no_fail. Publish accordingly */
+    int tmp_motor_num;			  // A temporary variable used to print msg
 
-  int screen_msg_flag = 1;
+    int screen_msg_flag = 1;
 
-  double max_force_{kDefaultMaxForce};
-  double max_rot_velocity_{kDefaulMaxRotVelocity};
-  double moment_constant_{kDefaultMomentConstant};
-  double motor_constant_{kDefaultMotorConstant};
-  double ref_motor_rot_vel_{0.0};
-  double rolling_moment_coefficient_{kDefaultRollingMomentCoefficient};
-  double rotor_drag_coefficient_{kDefaultRotorDragCoefficient};
-  double rotor_velocity_slowdown_sim_{kDefaultRotorVelocitySlowdownSim};
-  double time_constant_down_{kDefaultTimeConstantDown};
-  double time_constant_up_{kDefaultTimeConstantUp};
+    double max_force_{kDefaultMaxForce};
+    double max_rot_velocity_{kDefaulMaxRotVelocity};
+    double moment_constant_{kDefaultMomentConstant};
+    double motor_constant_{kDefaultMotorConstant};
+    double ref_motor_rot_vel_{0.0};
+    double rolling_moment_coefficient_{kDefaultRollingMomentCoefficient};
+    double rotor_drag_coefficient_{kDefaultRotorDragCoefficient};
+    double rotor_velocity_slowdown_sim_{kDefaultRotorVelocitySlowdownSim};
+    double time_constant_down_{kDefaultTimeConstantDown};
+    double time_constant_up_{kDefaultTimeConstantUp};
 
-  bool reversible_{false};
+    bool reversible_{false};
 
-  transport::NodePtr node_handle_;
-  transport::PublisherPtr motor_velocity_pub_;
-  transport::SubscriberPtr command_sub_;
-  transport::SubscriberPtr motor_failure_sub_; /*!< Subscribing to motor_failure_sub_topic_; receiving motor number to fail, as an integer */
-  transport::SubscriberPtr wind_sub_;
+    transport::NodePtr node_handle_;
+    transport::PublisherPtr motor_velocity_pub_;
+    transport::SubscriberPtr command_vpp_sub_;
+    transport::SubscriberPtr command_sub_;
+    transport::SubscriberPtr
+    motor_failure_sub_; /*!< Subscribing to motor_failure_sub_topic_; receiving motor number to fail, as an integer */
+    transport::SubscriberPtr wind_sub_;
 
-  ignition::math::Vector3d wind_vel_;
+    ignition::math::Vector3d wind_vel_;
 
-  physics::ModelPtr model_;
-  physics::JointPtr joint_;
-  common::PID pid_;
-  bool use_pid_;
-  physics::LinkPtr link_;
-  /// \brief Pointer to the update event connection.
-  event::ConnectionPtr updateConnection_;
+    physics::ModelPtr model_;
+    physics::JointPtr joint_;
+    common::PID pid_;
+    bool use_pid_;
+    physics::LinkPtr link_;
+    /// \brief Pointer to the update event connection.
+    event::ConnectionPtr updateConnection_;
 
-  boost::thread callback_queue_thread_;
-  void QueueThread();
-  std_msgs::msgs::Float turning_velocity_msg_;
-  void VelocityCallback(CommandMotorSpeedPtr &rot_velocities);
-  void MotorFailureCallback(const boost::shared_ptr<const msgs::Int> &fail_msg);  /*!< Callback for the motor_failure_sub_ subscriber */
-  void WindVelocityCallback(const boost::shared_ptr<const physics_msgs::msgs::Wind> &msg);
+    boost::thread callback_queue_thread_;
+    void QueueThread();
+    std_msgs::msgs::Float turning_velocity_msg_;
+    void VelocityCallback(CommandMotorSpeedPtr &rot_velocities);
+    void PitchAngleCallback(CommandPitchAnglePtr &pitch_angles);
+    void MotorFailureCallback(const boost::shared_ptr<const msgs::Int>
+                              &fail_msg); /*!< Callback for the motor_failure_sub_ subscriber */
+    void WindVelocityCallback(const boost::shared_ptr<const physics_msgs::msgs::Wind> &msg);
 
-  std::unique_ptr<FirstOrderFilter<double>>  rotor_velocity_filter_;
-/*
-  // Protobuf test
-  std::string motor_test_sub_topic_;
-  transport::SubscriberPtr motor_sub_;
-*/
+    std::unique_ptr<FirstOrderFilter<double>> rotor_velocity_filter_;
+    std::unique_ptr<FirstOrderFilter<double>> vpp_angle_filter_;
+    /*
+      // Protobuf test
+      std::string motor_test_sub_topic_;
+      transport::SubscriberPtr motor_sub_;
+    */
+};
+
+struct LinFunc
+{
+    double slope;
+    double constant;
+} __attribute__((aligned(16)));
+
+class Propeller
+{
+public:
+    Propeller();
+
+private:
+    LinFunc alpha_pre_stall;
+    LinFunc alpha_post_stall;
+
+    double alpha_stall;
+
+    // Drag is described by quadratic function of AOA
+    // but since we have struct to hold linear function
+    // we use that for linear part of drag function
+    // quadratic term is carried separately (not ideal)
+    double drag_quad_coeff;
+    LinFunc drag_lin;
 };
 }
