@@ -1,7 +1,9 @@
 <!-- DO NOT EDIT: Generated from iris.sdf.jinja -->
 <sdf version='1.6'>
   <model name='iris'>
-    <plugin name="ros2_gz_transport_bridge" filename="libgazebo_ros2_to_gz_traznsport.so" />
+    <plugin name="ros2_gz_transport_bridge" filename="libgazebo_ros2_to_gz_traznsport.so">
+      <pitchAnglePubTopic>/gazebo/default/iris/gazebo/command/pitch_angle</pitchAnglePubTopic>
+    </plugin>
     <link name='base_link'>
       <pose>0 0 0 0 0 0</pose>
       <inertial>

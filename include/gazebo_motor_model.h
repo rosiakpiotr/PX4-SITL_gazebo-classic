@@ -69,6 +69,60 @@ static constexpr double kDefaultRotorDragCoefficient = 1.0e-4;
 static constexpr double kDefaultRollingMomentCoefficient = 1.0e-6;
 static constexpr double kDefaultRotorVelocitySlowdownSim = 10.0;
 
+
+struct LinFunc
+{
+    double slope;
+    double constant;
+} __attribute__((aligned(16)));
+
+class Propeller
+{
+public:
+    Propeller() : alpha_stall(20.0), drag_quad_coeff(0.0006227) {
+        alpha_pre_stall.slope = 0.075;
+        alpha_pre_stall.constant = 0.0;
+        alpha_post_stall.slope = -0.15;
+        alpha_post_stall.constant = 4.5;
+        drag_lin.slope = -0.0004029;
+        drag_lin.constant = 0.02;
+    }
+
+    [[nodiscard]] double getCl(double alpha) const
+    {
+        double Cl = 1.0; // NOLINT
+        if (alpha > alpha_stall)
+        {
+            Cl = alpha_post_stall.slope * alpha + alpha_post_stall.constant;
+        }
+        else
+        {
+            Cl = alpha_pre_stall.slope * alpha + alpha_pre_stall.constant;
+        }
+        return ignition::math::clamp(Cl, 0.0, 2.0);
+    }
+
+    [[nodiscard]] double getCd(double alpha) const
+    {
+        double Cd = 0.0; // NOLINT
+        Cd = drag_quad_coeff * alpha * alpha + drag_lin.slope * alpha + drag_lin.constant;
+        return ignition::math::clamp(Cd, 0.2, 2.0);
+    }
+
+private:
+    LinFunc alpha_pre_stall;
+    LinFunc alpha_post_stall;
+
+    double alpha_stall{};
+
+    // Drag is described by quadratic function of AOA
+    // but since we have struct to hold linear function
+    // we use that for linear part of drag function
+    // quadratic term is carried separately (not ideal)
+    double drag_quad_coeff{};
+    LinFunc drag_lin;
+};
+
 class GazeboMotorModel : public MotorModel, public ModelPlugin
 {
 public:
@@ -111,6 +165,7 @@ private:
     double moment_constant_{kDefaultMomentConstant};
     double motor_constant_{kDefaultMotorConstant};
     double ref_motor_rot_vel_{0.0};
+    double ref_prop_pitch_angle_{15.0};
     double rolling_moment_coefficient_{kDefaultRollingMomentCoefficient};
     double rotor_drag_coefficient_{kDefaultRotorDragCoefficient};
     double rotor_velocity_slowdown_sim_{kDefaultRotorVelocitySlowdownSim};
@@ -128,6 +183,8 @@ private:
     transport::SubscriberPtr wind_sub_;
 
     ignition::math::Vector3d wind_vel_;
+
+    Propeller propeller_;
 
     physics::ModelPtr model_;
     physics::JointPtr joint_;
@@ -155,28 +212,4 @@ private:
     */
 };
 
-struct LinFunc
-{
-    double slope;
-    double constant;
-} __attribute__((aligned(16)));
-
-class Propeller
-{
-public:
-    Propeller();
-
-private:
-    LinFunc alpha_pre_stall;
-    LinFunc alpha_post_stall;
-
-    double alpha_stall;
-
-    // Drag is described by quadratic function of AOA
-    // but since we have struct to hold linear function
-    // we use that for linear part of drag function
-    // quadratic term is carried separately (not ideal)
-    double drag_quad_coeff;
-    LinFunc drag_lin;
-};
 }

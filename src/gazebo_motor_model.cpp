@@ -19,6 +19,7 @@
  */
 
 #include "gazebo_motor_model.h"
+#include <cmath>
 #include <ignition/math.hh>
 #include <memory>
 
@@ -199,7 +200,7 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
 
     // Create the first order filter.
     rotor_velocity_filter_ = std::make_unique<FirstOrderFilter<double>>(time_constant_up_, time_constant_down_, ref_motor_rot_vel_);
-    // rotor_velocity_filter_.reset(new FirstOrderFilter<double>(0.2, 0.2, 0.3));
+    vpp_angle_filter_ = std::make_unique<FirstOrderFilter<double>>(0.02, 0.02, ref_prop_pitch_angle_);
 }
 
 // Protobuf test
@@ -255,6 +256,7 @@ void GazeboMotorModel::PitchAngleCallback(CommandPitchAnglePtr &pitch_angles) //
     {
         double pitch_angle = pitch_angles->pitch_angle(motor_number_);
         std::cout << "Pitch angle for motor " << motor_number_ << ": " << pitch_angle << '\n';
+        ref_prop_pitch_angle_ = pitch_angle;
     }
 
 }
@@ -283,6 +285,7 @@ double angleBetweenVectors(const ignition::math::Vector3d& vector1, const igniti
     return std::acos(cosineOfAngle);
 }
 
+int ctr = 0; // NOLINT
 void GazeboMotorModel::UpdateForcesAndMoments()
 {
     motor_rot_vel_ = joint_->GetVelocity(0);
@@ -318,13 +321,33 @@ void GazeboMotorModel::UpdateForcesAndMoments()
     double angle = angleBetweenVectors(joint_axis, relative_wind_velocity);
     double scalar = 1 - vel / 25.0; // at 25 m/s the rotor will not produce any force anymore
 
-    // getCl()
-    // 	getCd()
+    double ref_prop_pitch_angle = vpp_angle_filter_->updateFilter(ref_prop_pitch_angle_, sampling_time_);
+
+    if (real_motor_velocity == 0)
+    {
+        real_motor_velocity = 1;
+    }
+
+    double omega_rad_s = real_motor_velocity * 0.104719755f;
+    double omega_r = omega_rad_s*5/2.f*2.54;
+    double effective_pitch = -atan(vel/omega_r) *180.f/M_PI;
+    double pitch = ref_prop_pitch_angle;
+
+    double AoA = pitch - effective_pitch;
+
+    if (ctr++ > 250) {
+        // std::cout << "Wind angle: " << angleInDegrees << " degrees\t" <<  << '\n';
+        // std::cout << "Pitch: " << pitch << "\tAoA: " << AoA << "deg\tCl: " << propeller_.getCl(AoA) << "\tCd: " << propeller_.getCd(AoA) << '\n';
+
+        // std::cout << "Pitch: " << pitch << "\tAoA: " << AoA << " deg\tEffective pitch" << effective_pitch << '\n';
+        ctr = 0;
+    }
 
     scalar = ignition::math::clamp(scalar, 0.0, 1.0);
     // Apply a force to the link.
-    double cL = 1.0; // NOLINT
-    link_->AddRelativeForce(ignition::math::Vector3d(0, 0, force * cL));
+    force *= propeller_.getCl(AoA);
+
+    link_->AddRelativeForce(ignition::math::Vector3d(0, 0, force));
 
     // Forces from Philppe Martin's and Erwan Salaün's
     // 2010 IEEE Conference on Robotics and Automation paper
@@ -335,6 +358,7 @@ void GazeboMotorModel::UpdateForcesAndMoments()
             joint_axis;
     ignition::math::Vector3d air_drag = -std::abs(real_motor_velocity) * rotor_drag_coefficient_ *
                                         velocity_perpendicular_to_rotor_axis;
+    air_drag *= propeller_.getCd(AoA);
     // Apply air_drag to link.
     link_->AddForce(air_drag);
     // Moments

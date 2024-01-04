@@ -1,6 +1,9 @@
 <?xml version="1.0"?>
-<sdf version='1.5'>
+<sdf version='1.6'>
   <model name='plane'>
+    <plugin name="ros2_gz_transport_bridge" filename="libgazebo_ros2_to_gz_traznsport.so">
+      <pitchAnglePubTopic>/gazebo/default/plane/gazebo/command/pitch_angle</pitchAnglePubTopic>
+    </plugin>
     <pose>0 0 0.246 0 0 0</pose>
     <link name='base_link'>
       <pose>0 0 0 0 0 0</pose>
@@ -51,7 +54,7 @@
         </material>
       </visual>
       <gravity>1</gravity>
-      <velocity_decay/>
+      <velocity_decay />
       <self_collide>0</self_collide>
     </link>
     <link name='plane/imu_link'>
@@ -120,10 +123,10 @@
         </geometry>
         <surface>
           <contact>
-            <ode/>
+            <ode />
           </contact>
           <friction>
-            <ode/>
+            <ode />
           </friction>
         </surface>
       </collision>
@@ -143,7 +146,7 @@
         </material>
       </visual>
       <gravity>1</gravity>
-      <velocity_decay/>
+      <velocity_decay />
       <self_collide>0</self_collide>
     </link>
     <joint name='rotor_puller_joint' type='revolute'>
@@ -495,7 +498,8 @@
       <forward>1 0 0</forward>
       <upward>0 0 1</upward>
       <link_name>base_link</link_name>
-      <!--<topic_name>lift_force/left_elevon</topic_name> Uncomment to draw the force -->
+      <!--<topic_name>lift_force/left_elevon</topic_name>
+      Uncomment to draw the force -->
       <control_joint_name>
         left_elevon_joint
       </control_joint_name>
@@ -518,7 +522,8 @@
       <forward>1 0 0</forward>
       <upward>0 0 1</upward>
       <link_name>base_link</link_name>
-      <!--<topic_name>lift_force/right_elevon</topic_name> Uncomment to draw the force -->
+      <!--<topic_name>lift_force/right_elevon</topic_name>
+      Uncomment to draw the force -->
       <control_joint_name>
         right_elevon_joint
       </control_joint_name>
@@ -608,7 +613,7 @@
       <upward>0 1 0</upward>
       <link_name>base_link</link_name>
       <control_joint_name>
-         rudder_joint
+        rudder_joint
       </control_joint_name>
       <control_joint_rad_to_cl>0.8</control_joint_rad_to_cl>
       <robotNamespace></robotNamespace>
@@ -634,10 +639,10 @@
       <windSubTopic>world_wind</windSubTopic>
     </plugin>
     <plugin name='groundtruth_plugin' filename='libgazebo_groundtruth_plugin.so'>
-      <robotNamespace/>
+      <robotNamespace />
     </plugin>
     <plugin name='magnetometer_plugin' filename='libgazebo_magnetometer_plugin.so'>
-      <robotNamespace/>
+      <robotNamespace />
       <pubRate>100</pubRate>
       <noiseDensity>0.0004</noiseDensity>
       <randomWalk>6.4e-06</randomWalk>
@@ -645,7 +650,7 @@
       <magTopic>/mag</magTopic>
     </plugin>
     <plugin name='barometer_plugin' filename='libgazebo_barometer_plugin.so'>
-      <robotNamespace/>
+      <robotNamespace />
       <pubRate>50</pubRate>
       <baroTopic>/baro</baroTopic>
     </plugin>
