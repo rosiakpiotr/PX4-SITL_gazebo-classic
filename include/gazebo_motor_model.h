@@ -27,6 +27,7 @@
 #include <rotors_model/motor_model.hpp>
 #include "CommandMotorSpeed.pb.h"
 #include "CommandPitchAngle.pb.h"
+// #include "VppState.pb.h"
 #include "gazebo/transport/transport.hh"
 #include "Float.pb.h"
 
@@ -47,10 +48,13 @@ static const std::string kDefaultCommandVppSubTopic = "/gazebo/command/pitch_ang
 static const std::string kDefaultMotorFailureNumSubTopic = "/gazebo/motor_failure_num";
 static const std::string kDefaultMotorVelocityPubTopic = "/motor_speed";
 static const std::string wind_sub_topic_ = "/wind";
+// static const std::string kDefaultVppStatePubTopic = "/vpp_state";
 
 typedef const boost::shared_ptr<const mav_msgs::msgs::CommandMotorSpeed> CommandMotorSpeedPtr;
 typedef const boost::shared_ptr<const mav_msgs::msgs::CommandPitchAngle> CommandPitchAnglePtr;
 typedef const boost::shared_ptr<const msgs::Wind> WindPtr;
+
+// typedef const boost::shared_ptr<const mav_msgs::msgs::VppState> VppStatePtr;
 
 /*
 // Protobuf test
@@ -136,12 +140,14 @@ public:
     void Publish() override;
     // void testProto(MotorSpeedPtr &msg);
 protected:
+    void UpdateMotorVelocity();
     void UpdateForcesAndMoments() override;
     /// \brief A function to check the motor_Failure_Number_ and stimulate motor fail
     /// \details Doing joint_->SetVelocity(0,0) for the flagged motor to fail
     virtual void UpdateMotorFail();
     void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) override;
     virtual void OnUpdate(const common::UpdateInfo & /*_info*/);
+
 
 private:
     std::string command_sub_topic_{kDefaultCommandSubTopic};
@@ -150,6 +156,7 @@ private:
     std::string joint_name_;
     std::string link_name_;
     std::string motor_speed_pub_topic_{kDefaultMotorVelocityPubTopic};
+    // std::string vpp_state_pub_topic_{kDefaultVppStatePubTopic};
     std::string namespace_;
 
     int motor_number_{0};
@@ -176,6 +183,7 @@ private:
 
     transport::NodePtr node_handle_;
     transport::PublisherPtr motor_velocity_pub_;
+    // transport::PublisherPtr vpp_state_pub_;
     transport::SubscriberPtr command_vpp_sub_;
     transport::SubscriberPtr command_sub_;
     transport::SubscriberPtr

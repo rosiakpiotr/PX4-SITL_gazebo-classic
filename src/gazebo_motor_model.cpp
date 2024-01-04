@@ -19,9 +19,6 @@
  */
 
 #include "gazebo_motor_model.h"
-#include <cmath>
-#include <ignition/math.hh>
-#include <memory>
 
 namespace gazebo
 {
@@ -77,9 +74,9 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     }
 
     // setup joint control pid to control joint
-    if (_sdf->HasElement("joint_control_pid"))
+    if (_sdf->HasElement("joint_control_pid") || true) // NOLINT
     {
-        sdf::ElementPtr pid = _sdf->GetElement("joint_control_pid");
+        sdf::ElementPtr pid = _sdf->GetElement("jointName"); // Changed for anything that is for sure in sdf just so errors gone
 
         auto get_sdf_or_default = [](sdf::ElementPtr const& elem, const std::string& key, double default_val) {
             if (elem->HasElement(key)) {
@@ -88,8 +85,8 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
             return default_val;
         };
 
-        pid_.Init(get_sdf_or_default(pid, "p", 0.1),
-                  get_sdf_or_default(pid, "i", 0),
+        pid_.Init(get_sdf_or_default(pid, "p", 0.01),
+                  get_sdf_or_default(pid, "i", 0.001),
                   get_sdf_or_default(pid, "d", 0),
                   get_sdf_or_default(pid, "iMax", 0),
                   get_sdf_or_default(pid, "iMin", 0),
@@ -158,6 +155,8 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     getSdfParam<std::string>(_sdf, "commandVppSubTopic", command_vpp_sub_topic_, command_vpp_sub_topic_);
     getSdfParam<std::string>(_sdf, "motorSpeedPubTopic", motor_speed_pub_topic_,
                              motor_speed_pub_topic_);
+    // getSdfParam<std::string>(_sdf, "vppStatePubTopic", vpp_state_pub_topic_,
+    //                          vpp_state_pub_topic_);
 
     getSdfParam<double>(_sdf, "rotorDragCoefficient", rotor_drag_coefficient_, rotor_drag_coefficient_);
     getSdfParam<double>(_sdf, "rollingMomentCoefficient", rolling_moment_coefficient_,
@@ -194,6 +193,8 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     // std::cout << "[gazebo_motor_model]: Subscribe to gz topic: "<< motor_failure_sub_topic_ << std::endl;
     motor_failure_sub_ = node_handle_->Subscribe<msgs::Int>(motor_failure_sub_topic_,
                          &GazeboMotorModel::MotorFailureCallback, this);
+
+    // vpp_state_pub_ = node_handle_->Advertise<mav_msgs::msgs::VppState>("~/" + model_->GetName() + vpp_state_pub_topic_, 1);
     // FIXME: Commented out to prevent warnings about queue limit reached.
     // motor_velocity_pub_ = node_handle_->Advertise<std_msgs::msgs::Float>("~/" + model_->GetName() + motor_speed_pub_topic_, 1);
     wind_sub_ = node_handle_->Subscribe<msgs::Wind>("~/" + wind_sub_topic_, &GazeboMotorModel::WindVelocityCallback, this);
@@ -220,6 +221,7 @@ void GazeboMotorModel::OnUpdate(const common::UpdateInfo &_info)
 {
     sampling_time_ = _info.simTime.Double() - prev_sim_time_;
     prev_sim_time_ = _info.simTime.Double();
+    UpdateMotorVelocity();
     UpdateForcesAndMoments();
     UpdateMotorFail();
     Publish();
@@ -335,18 +337,23 @@ void GazeboMotorModel::UpdateForcesAndMoments()
 
     double AoA = pitch - effective_pitch;
 
-    if (ctr++ > 250) {
+    // Every 100 iterations publish the state
+    if (ctr++ > 100) {
         // std::cout << "Wind angle: " << angleInDegrees << " degrees\t" <<  << '\n';
         // std::cout << "Pitch: " << pitch << "\tAoA: " << AoA << "deg\tCl: " << propeller_.getCl(AoA) << "\tCd: " << propeller_.getCd(AoA) << '\n';
 
         // std::cout << "Pitch: " << pitch << "\tAoA: " << AoA << " deg\tEffective pitch" << effective_pitch << '\n';
+        // mav_msgs::msgs::VppState vpp_state_msg;
+        // vpp_state_msg.set_motor_index(motor_number_);
+        // vpp_state_msg.set_pitch(pitch);
+        // vpp_state_msg.set_aoa(AoA);
+
         ctr = 0;
     }
 
-    scalar = ignition::math::clamp(scalar, 0.0, 1.0);
-    // Apply a force to the link.
-    force *= propeller_.getCl(AoA);
 
+    force *= propeller_.getCl(AoA);
+    // Apply a force to the link.
     link_->AddRelativeForce(ignition::math::Vector3d(0, 0, force));
 
     // Forces from Philppe Martin's and Erwan Salaün's
@@ -382,35 +389,6 @@ void GazeboMotorModel::UpdateForcesAndMoments()
     rolling_moment = -std::abs(real_motor_velocity) * turning_direction_ * rolling_moment_coefficient_ *
                      velocity_perpendicular_to_rotor_axis;
     parent_links.at(0)->AddTorque(rolling_moment);
-    // Apply the filter on the motor's velocity.
-    double ref_motor_rot_vel = rotor_velocity_filter_->updateFilter(ref_motor_rot_vel_, sampling_time_);
-
-
-#if 0 //FIXME: disable PID for now, it does not play nice with the PX4 CI system. NOLINT
-    if (use_pid_)
-    {
-        double err = joint_->GetVelocity(0) - turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_;
-        double rotorForce = pid_.Update(err, sampling_time_);
-        joint_->SetForce(0, rotorForce);
-        // gzerr << "rotor " << joint_->GetName() << " : " << rotorForce << "\n";
-    }
-    else
-    {
-#if GAZEBO_MAJOR_VERSION >= 7
-        // Not desirable to use SetVelocity for parts of a moving model
-        // impact on rest of the dynamic system is non-physical.
-        joint_->SetVelocity(0, turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_);
-#elif GAZEBO_MAJOR_VERSION >= 6
-        // Not ideal as the approach could result in unrealistic impulses, and
-        // is only available in ODE
-        joint_->SetParam("fmax", 0, 2.0);
-        joint_->SetParam("vel", 0, turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_);
-#endif
-    }
-#else
-    joint_->SetVelocity(0, turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_);
-#endif /* if 0 */
-
 }
 
 void GazeboMotorModel::UpdateMotorFail()
@@ -445,6 +423,42 @@ void GazeboMotorModel::WindVelocityCallback(WindPtr &msg)
     wind_vel_ = ignition::math::Vector3d(msg->linear_velocity().x(),
                                          msg->linear_velocity().y(),
                                          msg->linear_velocity().z());
+}
+
+void GazeboMotorModel::UpdateMotorVelocity()
+{
+    // Apply the filter on the motor's velocity.
+    double ref_motor_rot_vel = use_pid_ ? ref_motor_rot_vel_ : rotor_velocity_filter_->updateFilter(ref_motor_rot_vel_, sampling_time_);
+
+
+#if 1 //FIXME: disable PID for now, it does not play nice with the PX4 CI system. NOLINT
+    if (use_pid_)
+    {
+        double err = joint_->GetVelocity(0) - turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_;
+        double rotorForce = pid_.Update(err, sampling_time_);
+        // if (ctr>98) {
+        //     std::cout << "Rotor torque: " << rotorForce << "\n";
+        // }
+        joint_->SetForce(0, rotorForce);
+        // gzerr << "rotor " << joint_->GetName() << " : " << rotorForce << "\n";
+    }
+    else
+    {
+#if GAZEBO_MAJOR_VERSION >= 7
+        // Not desirable to use SetVelocity for parts of a moving model
+        // impact on rest of the dynamic system is non-physical.
+        joint_->SetVelocity(0, turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_);
+#elif GAZEBO_MAJOR_VERSION >= 6
+        // Not ideal as the approach could result in unrealistic impulses, and
+        // is only available in ODE
+        joint_->SetParam("fmax", 0, 2.0);
+        joint_->SetParam("vel", 0, turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_);
+#endif
+    }
+#else
+    joint_->SetVelocity(0, turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_);
+#endif /* if 0 */
+
 }
 
 GZ_REGISTER_MODEL_PLUGIN(GazeboMotorModel);
