@@ -3,6 +3,9 @@ cmake_policy(SET CMP0042 NEW)
 cmake_policy(SET CMP0048 NEW)
 cmake_policy(SET CMP0054 NEW)
 
+# For clangd extension to work
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 message(STATUS "_MAVLINK_INCLUDE_DIR: ${_MAVLINK_INCLUDE_DIR}")
 
 if(NOT CMAKE_INSTALL_PREFIX)
@@ -387,6 +390,7 @@ add_library(gazebo_gimbal_controller_plugin SHARED src/gazebo_gimbal_controller_
 add_library(gazebo_imu_plugin SHARED src/gazebo_imu_plugin.cpp)
 add_library(gazebo_mavlink_interface SHARED src/gazebo_mavlink_interface.cpp src/mavlink_interface.cpp)
 add_library(gazebo_motor_model SHARED src/gazebo_motor_model.cpp)
+add_library(gazebo_motor_vpp SHARED src/gazebo_motor_vpp_plugin/gazebo_motor_vpp.cpp)
 add_library(gazebo_multirotor_base_plugin SHARED src/gazebo_multirotor_base_plugin.cpp)
 add_library(gazebo_wind_plugin SHARED src/gazebo_wind_plugin.cpp)
 add_library(gazebo_magnetometer_plugin SHARED src/gazebo_magnetometer_plugin.cpp src/geo_mag_declination.cpp)
@@ -417,6 +421,7 @@ set(plugins
   gazebo_imu_plugin
   gazebo_mavlink_interface
   gazebo_motor_model
+  gazebo_motor_vpp
   gazebo_multirotor_base_plugin
   gazebo_wind_plugin
   gazebo_magnetometer_plugin
@@ -510,6 +515,8 @@ foreach(plugin ${plugins})
   add_dependencies(${plugin} mav_msgs nav_msgs std_msgs sensor_msgs)
   add_dependencies(${plugin} physics_msgs)
 endforeach()
+
+target_precompile_headers(gazebo_motor_vpp PUBLIC include/gazebo_motor_vpp_plugin/CP_data.h PUBLIC include/gazebo_motor_vpp_plugin/CT_data.h)
 
 # Configure the setup script
 if(catkin_FOUND)
