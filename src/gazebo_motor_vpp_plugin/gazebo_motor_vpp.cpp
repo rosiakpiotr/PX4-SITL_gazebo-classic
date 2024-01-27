@@ -251,7 +251,7 @@ void GazeboMotorModel::UpdateForcesAndMoments()
     double rpm = real_motor_velocity * 60.0 / (2.0 * M_PI);
     double airspeed = velocity_parallel_to_rotor_axis.Length();
     double pitch = ref_prop_pitch_angle;
-    double thrust = 0.25 * propeller_.getThrust({
+    double thrust = propeller_.getThrust({
         .omega = real_motor_velocity,
         .airspeed = airspeed,
         .pitch = pitch
@@ -323,6 +323,7 @@ void GazeboMotorModel::UpdateForcesAndMoments()
             vpp_state_msg.set_airspeed(airspeed);
             vpp_state_msg.set_advance_ratio(airspeed/(rpm*propeller_.getDiameter()));
             vpp_state_msg.set_motor_index(motor_number_);
+            vpp_state_msg.set_power(std::abs(torque*real_motor_velocity));
 
             vpp_state_pub_->Publish(vpp_state_msg);
         }

@@ -4,8 +4,6 @@
 #include <cmath>
 #include <cstdlib>
 
-#include "common.h"
-
 #include "CP_data.h"
 #include "CT_data.h"
 
@@ -15,11 +13,7 @@ struct PropellerParams
 {
     double diameter = 0.0;
     double rho = 1.22;
-    double cp_tau_up = 0.0;
-    double cp_tau_down = 0.0;
-    double ct_tau_up = 0.0;
-    double ct_tau_down = 0.0;
-} __attribute__((aligned(64)));
+} __attribute__((aligned(16))) __attribute__((packed));
 
 struct OperPoint
 {
@@ -102,20 +96,15 @@ class Propeller
     double D;
     double rho;
 
-    std::unique_ptr<FirstOrderFilter<double>> cp_filter_;
-    std::unique_ptr<FirstOrderFilter<double>> ct_filter_;
-
 public:
     Propeller(const PropellerParams& params) : D(params.diameter), rho(params.rho)
     {
-        cp_filter_ = std::make_unique<FirstOrderFilter<double>>(params.cp_tau_up, params.cp_tau_down, 0.0);
-        ct_filter_ = std::make_unique<FirstOrderFilter<double>>(params.ct_tau_up, params.ct_tau_down, 0.0);
     }
 
     [[nodiscard]] double getThrust(const OperPoint& point) const
     {
         // Input velocity may be negative due to CCW rotation
-        double omega = abs(point.omega);
+        double omega = std::abs(point.omega);
         double rpm = omega * 60.0 / (2.0 * M_PI);
         double Ct_ = interp_Ct({
             .rpm = rpm,
@@ -127,15 +116,10 @@ public:
 
     [[nodiscard]] double getTorque(const OperPoint& point) const
     {
-        double omega = abs(point.omega);
-        double power = getPower(point);
-        return omega == 0 ? 0 : power / omega;
-    }
-
-    [[nodiscard]] double getPower(const OperPoint& point) const
-    {
-        double omega = abs(point.omega);
+        double omega = std::abs(point.omega);
         double rpm = omega * 60.0 / (2.0 * M_PI);
+        // Eventough name is CP, after examining QProp documentation, it is clear
+        // that it is actually torque coefficient
         double Cp_ = interp_Cp({
             .rpm = rpm,
             .airspeed = point.airspeed,
