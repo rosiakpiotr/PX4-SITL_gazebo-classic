@@ -4,6 +4,7 @@
   <model name='tailsitter_vpp'>
     <plugin name="ros2_gz_transport_bridge" filename="libgazebo_ros2_to_gz_traznsport.so">
       <pitchAnglePubTopic>/gazebo/default/tailsitter_vpp/gazebo/command/pitch_angle</pitchAnglePubTopic>
+      <vppStateSubTopic>/gazebo/default/tailsitter_vpp/gazebo/state/vpp_state</vppStateSubTopic>
     </plugin>
     <link name='base_link'>
       <pose>0 0 0.4 0 0 0</pose>

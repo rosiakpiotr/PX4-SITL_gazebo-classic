@@ -332,6 +332,7 @@ glob_generate(models_gen ${CMAKE_CURRENT_SOURCE_DIR}/models/*.jinja)
 set(mav_msgs
   msgs/CommandMotorSpeed.proto
   msgs/CommandPitchAngle.proto
+  msgs/VppState.proto
   msgs/MotorSpeed.proto
 )
 set(nav_msgs msgs/Odometry.proto)

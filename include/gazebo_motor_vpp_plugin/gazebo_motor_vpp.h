@@ -27,7 +27,7 @@
 #include <rotors_model/motor_model.hpp>
 #include "CommandMotorSpeed.pb.h"
 #include "CommandPitchAngle.pb.h"
-// #include "VppState.pb.h"
+#include "VppState.pb.h"
 #include "gazebo/transport/transport.hh"
 #include "Float.pb.h"
 
@@ -67,7 +67,7 @@ static const std::string kDefaultCommandVppSubTopic = "/gazebo/command/pitch_ang
 static const std::string kDefaultMotorFailureNumSubTopic = "/gazebo/motor_failure_num";
 static const std::string kDefaultMotorVelocityPubTopic = "/motor_speed";
 static const std::string wind_sub_topic_ = "/wind";
-static const std::string kDefaultVppStatePubTopic = "/vpp_state";
+static const std::string kDefaultVppStatePubTopic = "/gazebo/state/vpp_state";
 
 typedef const boost::shared_ptr<const mav_msgs::msgs::CommandMotorSpeed> CommandMotorSpeedPtr;
 typedef const boost::shared_ptr<const mav_msgs::msgs::CommandPitchAngle> CommandPitchAnglePtr;
@@ -141,7 +141,7 @@ private:
 
     transport::NodePtr node_handle_;
     transport::PublisherPtr motor_velocity_pub_;
-    // transport::PublisherPtr vpp_state_pub_;
+    transport::PublisherPtr vpp_state_pub_;
     transport::SubscriberPtr command_vpp_sub_;
     transport::SubscriberPtr command_sub_;
     transport::SubscriberPtr

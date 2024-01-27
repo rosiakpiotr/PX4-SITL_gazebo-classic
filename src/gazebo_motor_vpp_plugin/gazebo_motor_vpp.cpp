@@ -149,7 +149,7 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     motor_failure_sub_ = node_handle_->Subscribe<msgs::Int>(motor_failure_sub_topic_,
                          &GazeboMotorModel::MotorFailureCallback, this);
 
-    // vpp_state_pub_ = node_handle_->Advertise<mav_msgs::msgs::VppState>("~/" + model_->GetName() + vpp_state_pub_topic_, 1);
+    vpp_state_pub_ = node_handle_->Advertise<mav_msgs::msgs::VppState>("~/" + model_->GetName() + vpp_state_pub_topic_, 1);
     // FIXME: Commented out to prevent warnings about queue limit reached.
     motor_velocity_pub_ = node_handle_->Advertise<std_msgs::msgs::Float>("~/" + model_->GetName() + motor_speed_pub_topic_, 1);
     wind_sub_ = node_handle_->Subscribe<msgs::Wind>("~/" + wind_sub_topic_, &GazeboMotorModel::WindVelocityCallback, this);
@@ -312,19 +312,19 @@ void GazeboMotorModel::UpdateForcesAndMoments()
         // std::cout << "Pitch: " << pitch << "\tAoA: " << AoA << "deg\tCl: " << propeller_.getCl(AoA) << "\tCd: " << propeller_.getCd(AoA) << '\n';
 
         // std::cout << "Pitch: " << pitch << "\tAoA: " << AoA << " deg\tEffective pitch" << effective_pitch << '\n';
-        // mav_msgs::msgs::VppState vpp_state_msg;
-        // vpp_state_msg.set_thrust(thrust);
-        // vpp_state_msg.set_torque(torque);
-        // vpp_state_msg.set_aoa(0.0);
-        // vpp_state_msg.set_pitch(pitch);
-        // vpp_state_msg.set_rpm(rpm);
-        // vpp_state_msg.set_airspeed(airspeed);
-        // vpp_state_msg.set_advance_ratio(airspeed/(rpm*propeller_.getDiameter()));
-        // vpp_state_msg.set_motor_index(motor_number_);
-
-        // vpp_state_pub_->Publish(vpp_state_msg);
         if (motor_number_ == 1) {
             // std::cout << thrust << "\t" << torque << "\t" << pitch << '\n';
+            mav_msgs::msgs::VppState vpp_state_msg;
+            vpp_state_msg.set_thrust(thrust);
+            vpp_state_msg.set_torque(torque);
+            vpp_state_msg.set_aoa(0.0);
+            vpp_state_msg.set_pitch(pitch);
+            vpp_state_msg.set_rpm(rpm);
+            vpp_state_msg.set_airspeed(airspeed);
+            vpp_state_msg.set_advance_ratio(airspeed/(rpm*propeller_.getDiameter()));
+            vpp_state_msg.set_motor_index(motor_number_);
+
+            vpp_state_pub_->Publish(vpp_state_msg);
         }
 
         ctr = 0;
