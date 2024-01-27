@@ -43,6 +43,23 @@ const static int CW = -1; // NOLINT
 
 namespace gazebo
 {
+
+namespace sdf_helpers
+{
+
+template <typename T>
+T get_if_has_or_err_msg(const sdf::ElementPtr& sdf, const std::string& elem_name, const T& default_value, const std::string& err_msg) {
+    T ret_val = default_value;
+    if (sdf->HasElement(elem_name)) {
+        ret_val = sdf->GetElement(elem_name)->Get<T>();
+    } else {
+        gzerr << err_msg << "\n";
+    }
+    return ret_val;
+};
+
+}
+
 // Default values
 static const std::string kDefaultNamespace;
 static const std::string kDefaultCommandSubTopic = "/gazebo/command/motor_speed";

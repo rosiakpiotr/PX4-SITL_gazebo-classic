@@ -37,30 +37,18 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
 
     namespace_.clear();
 
-    if (_sdf->HasElement("robotNamespace"))
-    {
-        namespace_ = _sdf->GetElement("robotNamespace")->Get<std::string>();
-    }
-    else
-    {
-        gzerr << "[gazebo_motor_model] Please specify a robotNamespace.\n";
-    }
+    namespace_ =
+        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "robotNamespace", namespace_,  "[gazebo_motor_vpp] Please specify a robotNamespace.");
 
     node_handle_ = transport::NodePtr(new transport::Node());
     node_handle_->Init(namespace_);
 
-    if (_sdf->HasElement("jointName"))
-    {
-        joint_name_ = _sdf->GetElement("jointName")->Get<std::string>();
-    }
-    else
-    {
-        gzerr << "[gazebo_motor_model] Please specify a jointName, where the rotor is attached.\n";
-    }
+    joint_name_ =
+        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "jointName", joint_name_, "[gazebo_motor_vpp] Please specify a jointName, where the rotor is attached.");
+
 
     // Get the pointer to the joint.
     joint_ = model_->GetJoint(joint_name_);
-
     if (joint_ == nullptr)
     {
         gzthrow("[gazebo_motor_model] Couldn't find specified joint \"" << joint_name_ << "\".");
@@ -71,11 +59,9 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     {
         sdf::ElementPtr pid = _sdf->GetElement("jointName"); // Changed for anything that is for sure in sdf just so errors gone
 
-        auto get_sdf_or_default = [](sdf::ElementPtr const& elem, const std::string& key, double default_val) {
-            if (elem->HasElement(key)) {
-                return elem->Get<double>(key);
-            }
-            return default_val;
+        auto get_sdf_or_default =
+        [](const sdf::ElementPtr & elem, const std::string& key, double default_val) -> double {
+            return elem->HasElement(key) ? elem->Get<double>(key) : default_val;
         };
 
         pid_.Init(get_sdf_or_default(pid, "p", 0.01),
@@ -92,57 +78,38 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
         use_pid_ = false;
     }
 
-    if (_sdf->HasElement("linkName"))
-    {
-        link_name_ = _sdf->GetElement("linkName")->Get<std::string>();
-    }
-    else
-    {
-        gzerr << "[gazebo_motor_model] Please specify a linkName of the rotor.\n";
-    }
+    link_name_ =
+        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "linkName", joint_name_,"[gazebo_motor_vpp] Please specify a linkName of the rotor.");
 
     link_ = model_->GetLink(link_name_);
-
     if (link_ == nullptr)
     {
         gzthrow("[gazebo_motor_model] Couldn't find specified link \"" << link_name_ << "\".");
     }
 
-    if (_sdf->HasElement("motorNumber"))
+    motor_number_ =
+        sdf_helpers::get_if_has_or_err_msg<int>(_sdf, "motorNumber", motor_number_, "[gazebo_motor_vpp] Please specify a motorNumber.");
+
+
+    std::string turning_direction =
+        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "turningDirection", "cw", "[gazebo_motor_vpp] Please specify a turning direction ('cw' or 'ccw').");
+
+    if (turning_direction == "cw")
     {
-        motor_number_ = _sdf->GetElement("motorNumber")->Get<int>();
+        turning_direction_ = turning_direction::CW;
+    }
+    else if (turning_direction == "ccw")
+    {
+        turning_direction_ = turning_direction::CCW;
     }
     else
     {
-        gzerr << "[gazebo_motor_model] Please specify a motorNumber.\n";
+        gzerr << "[gazebo_motor_model] Please only use 'cw' or 'ccw' as turningDirection.\n";
     }
 
-    if (_sdf->HasElement("turningDirection"))
-    {
-        std::string turning_direction = _sdf->GetElement("turningDirection")->Get<std::string>();
+    reversible_ =
+        sdf_helpers::get_if_has_or_err_msg<bool>(_sdf, "reversible", false, "[gazebo_motor_vpp] Please specify if motor is reversible (true or false).");
 
-        if (turning_direction == "cw")
-        {
-            turning_direction_ = turning_direction::CW;
-        }
-        else if (turning_direction == "ccw")
-        {
-            turning_direction_ = turning_direction::CCW;
-        }
-        else
-        {
-            gzerr << "[gazebo_motor_model] Please only use 'cw' or 'ccw' as turningDirection.\n";
-        }
-    }
-    else
-    {
-        gzerr << "[gazebo_motor_model] Please specify a turning direction ('cw' or 'ccw').\n";
-    }
-
-    if (_sdf->HasElement("reversible"))
-    {
-        reversible_ = _sdf->GetElement("reversible")->Get<bool>();
-    }
 
     getSdfParam<std::string>(_sdf, "commandSubTopic", command_sub_topic_, command_sub_topic_);
     getSdfParam<std::string>(_sdf, "commandVppSubTopic", command_vpp_sub_topic_, command_vpp_sub_topic_);
@@ -166,15 +133,6 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     getSdfParam<double>(_sdf, "propDiameter", propD, propD);
     propeller_.setDiameter(propD);
 
-    /*
-    std::cout << "Subscribing to: " << motor_test_sub_topic_ << std::endl;
-    motor_sub_ = node_handle_->Subscribe<mav_msgs::msgs::MotorSpeed>("~/" + model_->GetName() + motor_test_sub_topic_, &GazeboMotorModel::testProto, this);
-    */
-
-    // Set the maximumForce on the joint. This is deprecated from V5 on, and the joint won't move.
-#if GAZEBO_MAJOR_VERSION < 5
-    joint_->SetMaxForce(0, max_force_);
-#endif
     // Listen to the update event. This event is broadcast every
     // simulation iteration.
     updateConnection_ = event::Events::ConnectWorldUpdateBegin([this](auto && PH1) {
@@ -225,14 +183,9 @@ void GazeboMotorModel::VelocityCallback(CommandMotorSpeedPtr &rot_velocities)
     }
 }
 
-void GazeboMotorModel::PitchAngleCallback(CommandPitchAnglePtr &pitch_angles) // NOLINT
+void GazeboMotorModel::PitchAngleCallback(CommandPitchAnglePtr &pitch_angles)
 {
-    // std::cout << "Pitch angle callback, values: " << '\n';
-    // for (const float& angle : )
-    // {
-    //     std::cout << angle << "\t";
-    // }
-    // std::cout << "\n";
+    // std::cout << "Pitch angle callback fired." << '\n';
 
     if (pitch_angles->pitch_angle_size() < motor_number_)
     {
@@ -371,7 +324,7 @@ void GazeboMotorModel::UpdateForcesAndMoments()
 
         // vpp_state_pub_->Publish(vpp_state_msg);
         if (motor_number_ == 1) {
-            std::cout << thrust << "\t" << torque << '\n';
+            // std::cout << thrust << "\t" << torque << "\t" << pitch << '\n';
         }
 
         ctr = 0;
