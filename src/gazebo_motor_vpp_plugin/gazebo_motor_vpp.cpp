@@ -19,6 +19,7 @@
  */
 
 #include "gazebo_motor_vpp_plugin/gazebo_motor_vpp.h"
+#include <cmath>
 
 namespace gazebo
 {
@@ -129,9 +130,9 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     getSdfParam<double>(_sdf, "timeConstantDown", time_constant_down_, time_constant_down_);
     getSdfParam<double>(_sdf, "rotorVelocitySlowdownSim", rotor_velocity_slowdown_sim_, 10);
 
-    double propD = 18*2.56/100.0;
-    getSdfParam<double>(_sdf, "propDiameter", propD, propD);
-    propeller_.setDiameter(propD);
+    double propD = propeller_.getDiameter();
+    getSdfParam<double>(_sdf, "propDiameterInch", propD, propD);
+    propeller_.setDiameterInch(propD);
 
     // Listen to the update event. This event is broadcast every
     // simulation iteration.
@@ -206,25 +207,6 @@ void GazeboMotorModel::MotorFailureCallback(const boost::shared_ptr<const msgs::
     motor_Failure_Number_ = fail_msg->data();
 }
 
-double angleBetweenVectors(const ignition::math::Vector3d& vector1, const ignition::math::Vector3d& vector2)
-{
-    double dotProduct = vector1.Dot(vector2);
-    double magnitudes = vector1.Length() * vector2.Length();
-
-    // Make sure we don't divide by zero
-    if (magnitudes == 0) {
-        return 0;
-    }
-
-    double cosineOfAngle = dotProduct / magnitudes;
-
-    // Clamp the value to the [-1, 1] range in case of numerical errors
-    cosineOfAngle = std::max(-1.0, std::min(1.0, cosineOfAngle));
-
-    // Return the angle in radians
-    return std::acos(cosineOfAngle);
-}
-
 int ctr = 0; // NOLINT
 void GazeboMotorModel::UpdateForcesAndMoments()
 {
@@ -261,6 +243,14 @@ void GazeboMotorModel::UpdateForcesAndMoments()
         .airspeed = airspeed,
         .pitch = pitch
     });
+
+    // Computing angle of attack
+    // Angle of attack at 3/4 of propeller radius is representative of entire prop
+    double radius34 = 3.0/4.0 * propeller_.getDiameter() / 2.0;
+    // Taking absolute value of tan because real_motor_velocity can be negative
+    // and tangent is odd.
+    double tan = real_motor_velocity != 0 ? std::abs(std::tan(airspeed/(real_motor_velocity*radius34))) : 0;
+    double aoa = pitch - (std::atan(tan) * 180.0 / M_PI);
 
     if(!reversible_) {
         // Not allowed to have negative thrust.
@@ -306,28 +296,20 @@ void GazeboMotorModel::UpdateForcesAndMoments()
                      velocity_perpendicular_to_rotor_axis;
     parent_links.at(0)->AddTorque(rolling_moment);
 
-    // Every 100 iterations publish the state
-    if (ctr++ > 100) {
-        // std::cout << "Wind angle: " << angleInDegrees << " degrees\t" <<  << '\n';
-        // std::cout << "Pitch: " << pitch << "\tAoA: " << AoA << "deg\tCl: " << propeller_.getCl(AoA) << "\tCd: " << propeller_.getCd(AoA) << '\n';
+    // Every couple iterations publish the state
+    if (ctr++ > 50) {
+        mav_msgs::msgs::VppState vpp_state_msg;
+        vpp_state_msg.set_thrust(thrust);
+        vpp_state_msg.set_torque(torque);
+        vpp_state_msg.set_aoa(aoa);
+        vpp_state_msg.set_pitch(pitch);
+        vpp_state_msg.set_rpm(rpm);
+        vpp_state_msg.set_airspeed(airspeed);
+        vpp_state_msg.set_advance_ratio(airspeed/(rpm*propeller_.getDiameter()));
+        vpp_state_msg.set_motor_index(motor_number_);
+        vpp_state_msg.set_power(std::abs(torque*real_motor_velocity));
 
-        // std::cout << "Pitch: " << pitch << "\tAoA: " << AoA << " deg\tEffective pitch" << effective_pitch << '\n';
-        if (motor_number_ == 1) {
-            // std::cout << thrust << "\t" << torque << "\t" << pitch << '\n';
-            mav_msgs::msgs::VppState vpp_state_msg;
-            vpp_state_msg.set_thrust(thrust);
-            vpp_state_msg.set_torque(torque);
-            vpp_state_msg.set_aoa(0.0);
-            vpp_state_msg.set_pitch(pitch);
-            vpp_state_msg.set_rpm(rpm);
-            vpp_state_msg.set_airspeed(airspeed);
-            vpp_state_msg.set_advance_ratio(airspeed/(rpm*propeller_.getDiameter()));
-            vpp_state_msg.set_motor_index(motor_number_);
-            vpp_state_msg.set_power(std::abs(torque*real_motor_velocity));
-
-            vpp_state_pub_->Publish(vpp_state_msg);
-        }
-
+        vpp_state_pub_->Publish(vpp_state_msg);
         ctr = 0;
     }
 }

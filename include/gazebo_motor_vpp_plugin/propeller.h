@@ -138,9 +138,9 @@ public:
         this->rho = rho;
     }
 
-    void setDiameter(double diameter)
+    void setDiameterInch(double diameter)
     {
-        this->D = diameter;
+        this->D = diameter*2.54/100.0;
     }
 };
 
