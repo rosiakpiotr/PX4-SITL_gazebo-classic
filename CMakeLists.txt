@@ -517,7 +517,7 @@ foreach(plugin ${plugins})
   add_dependencies(${plugin} physics_msgs)
 endforeach()
 
-target_precompile_headers(gazebo_motor_vpp PUBLIC include/gazebo_motor_vpp_plugin/CP_data.h PUBLIC include/gazebo_motor_vpp_plugin/CT_data.h)
+target_precompile_headers(gazebo_motor_vpp PRIVATE include/gazebo_motor_vpp_plugin/propeller.h)
 
 # Configure the setup script
 if(catkin_FOUND)
