@@ -39,77 +39,77 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     namespace_.clear();
 
     namespace_ =
-        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "robotNamespace", namespace_,  "[gazebo_motor_vpp] Please specify a robotNamespace.");
+        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "robotNamespace", namespace_,"[gazebo_motor_vpp] Please specify a robotNamespace.");
 
     node_handle_ = transport::NodePtr(new transport::Node());
     node_handle_->Init(namespace_);
 
     joint_name_ =
-        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "jointName", joint_name_, "[gazebo_motor_vpp] Please specify a jointName, where the rotor is attached.");
+        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "jointName", joint_name_,
+                "[gazebo_motor_vpp] Please specify a jointName, where the rotor is attached.");
 
 
     // Get the pointer to the joint.
     joint_ = model_->GetJoint(joint_name_);
-    if (joint_ == nullptr)
-    {
+
+    if (joint_ == nullptr) {
         gzthrow("[gazebo_motor_model] Couldn't find specified joint \"" << joint_name_ << "\".");
     }
 
     // setup joint control pid to control joint
-    if (_sdf->HasElement("joint_control_pid") || true) // NOLINT
-    {
+    if (_sdf->HasElement("joint_control_pid") || true * 0) { // NOLINT
         sdf::ElementPtr pid = _sdf->GetElement("jointName"); // Changed for anything that is for sure in sdf just so errors gone
 
         auto get_sdf_or_default =
-        [](const sdf::ElementPtr & elem, const std::string& key, double default_val) -> double {
+        [](const sdf::ElementPtr & elem, const std::string & key, double default_val) -> double {
             return elem->HasElement(key) ? elem->Get<double>(key) : default_val;
         };
 
-        pid_.Init(get_sdf_or_default(pid, "p", 0.01),
-                  get_sdf_or_default(pid, "i", 0.001),
-                  get_sdf_or_default(pid, "d", 0),
-                  get_sdf_or_default(pid, "iMax", 0),
-                  get_sdf_or_default(pid, "iMin", 0),
-                  get_sdf_or_default(pid, "cmdMax", 3),
-                  get_sdf_or_default(pid, "cmdMin", -3));
+        pid_.Init(get_sdf_or_default(pid, "__p", 0.0001),
+                  get_sdf_or_default(pid, "__i", 0.00001),
+                  get_sdf_or_default(pid, "__d", 0.00001),
+                  get_sdf_or_default(pid, "__iMax", 1),
+                  get_sdf_or_default(pid, "__iMin", 0),
+                  get_sdf_or_default(pid, "__cmdMax", 1.3),
+                  get_sdf_or_default(pid, "__cmdMin", 0));
         use_pid_ = true;
-    }
-    else
-    {
+
+    } else {
         use_pid_ = false;
     }
 
     link_name_ =
-        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "linkName", joint_name_,"[gazebo_motor_vpp] Please specify a linkName of the rotor.");
+        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "linkName", joint_name_,
+                "[gazebo_motor_vpp] Please specify a linkName of the rotor.");
 
     link_ = model_->GetLink(link_name_);
-    if (link_ == nullptr)
-    {
+
+    if (link_ == nullptr) {
         gzthrow("[gazebo_motor_model] Couldn't find specified link \"" << link_name_ << "\".");
     }
 
     motor_number_ =
-        sdf_helpers::get_if_has_or_err_msg<int>(_sdf, "motorNumber", motor_number_, "[gazebo_motor_vpp] Please specify a motorNumber.");
+        sdf_helpers::get_if_has_or_err_msg<int>(_sdf, "motorNumber", motor_number_,
+                "[gazebo_motor_vpp] Please specify a motorNumber.");
 
 
     std::string turning_direction =
-        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "turningDirection", "cw", "[gazebo_motor_vpp] Please specify a turning direction ('cw' or 'ccw').");
+        sdf_helpers::get_if_has_or_err_msg<std::string>(_sdf, "turningDirection", "cw",
+                "[gazebo_motor_vpp] Please specify a turning direction ('cw' or 'ccw').");
 
-    if (turning_direction == "cw")
-    {
+    if (turning_direction == "cw") {
         turning_direction_ = turning_direction::CW;
-    }
-    else if (turning_direction == "ccw")
-    {
+
+    } else if (turning_direction == "ccw") {
         turning_direction_ = turning_direction::CCW;
-    }
-    else
-    {
+
+    } else {
         gzerr << "[gazebo_motor_model] Please only use 'cw' or 'ccw' as turningDirection.\n";
     }
 
     reversible_ =
-        sdf_helpers::get_if_has_or_err_msg<bool>(_sdf, "reversible", false, "[gazebo_motor_vpp] Please specify if motor is reversible (true or false).");
+        sdf_helpers::get_if_has_or_err_msg<bool>(_sdf, "reversible", false,
+                "[gazebo_motor_vpp] Please specify if motor is reversible (true or false).");
 
 
     getSdfParam<std::string>(_sdf, "commandSubTopic", command_sub_topic_, command_sub_topic_);
@@ -136,7 +136,7 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
 
     // Listen to the update event. This event is broadcast every
     // simulation iteration.
-    updateConnection_ = event::Events::ConnectWorldUpdateBegin([this](auto && PH1) {
+    updateConnection_ = event::Events::ConnectWorldUpdateBegin([this](auto &&PH1) {
         OnUpdate(std::forward<decltype(PH1)>(PH1));
     });
 
@@ -152,19 +152,28 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
 
     vpp_state_pub_ = node_handle_->Advertise<mav_msgs::msgs::VppState>("~/" + model_->GetName() + vpp_state_pub_topic_, 1);
     // FIXME: Commented out to prevent warnings about queue limit reached.
-    motor_velocity_pub_ = node_handle_->Advertise<std_msgs::msgs::Float>("~/" + model_->GetName() + motor_speed_pub_topic_, 1);
+    motor_velocity_pub_ = node_handle_->Advertise<std_msgs::msgs::Float>("~/" + model_->GetName() + motor_speed_pub_topic_,
+                          1);
     wind_sub_ = node_handle_->Subscribe<msgs::Wind>("~/" + wind_sub_topic_, &GazeboMotorModel::WindVelocityCallback, this);
 
     // Create the first order filter.
-    rotor_velocity_filter_ = std::make_unique<FirstOrderFilter<double>>(time_constant_up_, time_constant_down_, ref_motor_rot_vel_);
+    rotor_velocity_filter_ = std::make_unique<FirstOrderFilter<double>>(time_constant_up_, time_constant_down_,
+                             ref_motor_rot_vel_);
     vpp_angle_filter_ = std::make_unique<FirstOrderFilter<double>>(0.1, 0.1, ref_prop_pitch_angle_);
 }
+
+static double last_sent_timestamp = 0;
+static bool send_diagnostics_now = true;
 
 // This gets called by the world update start event.
 void GazeboMotorModel::OnUpdate(const common::UpdateInfo &_info)
 {
     sampling_time_ = _info.simTime.Double() - prev_sim_time_;
     prev_sim_time_ = _info.simTime.Double();
+    if ((_info.realTime.Double() - last_sent_timestamp) > 0.01) {
+        send_diagnostics_now = true;
+        last_sent_timestamp = _info.realTime.Double();
+    }
     UpdateMotorVelocity();
     UpdateForcesAndMoments();
     UpdateMotorFail();
@@ -173,14 +182,13 @@ void GazeboMotorModel::OnUpdate(const common::UpdateInfo &_info)
 
 void GazeboMotorModel::VelocityCallback(CommandMotorSpeedPtr &rot_velocities)
 {
-    if (rot_velocities->motor_speed_size() < motor_number_)
-    {
+    if (rot_velocities->motor_speed_size() < motor_number_) {
         std::cout << "You tried to access index " << motor_number_
                   << " of the MotorSpeed message array which is of size " << rot_velocities->motor_speed_size() << "." << '\n';
-    }
-    else
-    {
-        ref_motor_rot_vel_ = std::min(static_cast<double>(rot_velocities->motor_speed(motor_number_)), static_cast<double>(max_rot_velocity_));
+
+    } else {
+        ref_motor_rot_vel_ = std::min(static_cast<double>(rot_velocities->motor_speed(motor_number_)),
+                                      static_cast<double>(max_rot_velocity_));
     }
 }
 
@@ -188,13 +196,11 @@ void GazeboMotorModel::PitchAngleCallback(CommandPitchAnglePtr &pitch_angles)
 {
     // std::cout << "Pitch angle callback fired." << '\n';
 
-    if (pitch_angles->pitch_angle_size() < motor_number_)
-    {
+    if (pitch_angles->pitch_angle_size() < motor_number_) {
         std::cout << "You tried to access index " << motor_number_
                   << " of the PitchAngle message array which is of size " << pitch_angles->pitch_angle_size() << "." << '\n';
-    }
-    else
-    {
+
+    } else {
         double pitch_angle = pitch_angles->pitch_angle(motor_number_);
         // std::cout << "Pitch angle for motor " << motor_number_ << ": " << pitch_angle << '\n';
         ref_prop_pitch_angle_ = pitch_angle;
@@ -207,14 +213,13 @@ void GazeboMotorModel::MotorFailureCallback(const boost::shared_ptr<const msgs::
     motor_Failure_Number_ = fail_msg->data();
 }
 
-int ctr = 0; // NOLINT
 void GazeboMotorModel::UpdateForcesAndMoments()
 {
     motor_rot_vel_ = joint_->GetVelocity(0); // rad/s
 
-    if (motor_rot_vel_ / (2 * M_PI) > 1 / (2 * sampling_time_))
-    {
-        gzerr << "Aliasing on motor [" << motor_number_ << "] might occur. Consider making smaller simulation time steps or raising the rotor_velocity_slowdown_sim_ param.\n";
+    if (motor_rot_vel_ / (2 * M_PI) > 1 / (2 * sampling_time_)) {
+        gzerr << "Aliasing on motor [" << motor_number_ <<
+              "] might occur. Consider making smaller simulation time steps or raising the rotor_velocity_slowdown_sim_ param.\n";
     }
 
 #if GAZEBO_MAJOR_VERSION >= 9
@@ -244,18 +249,19 @@ void GazeboMotorModel::UpdateForcesAndMoments()
         .pitch = pitch
     });
 
+    // if (isnan(real_motor_velocity)) {
+    //     gzerr << "Motor velocity is NaN!!!" << '\n';
+    //     thrust = 0;
+    //     torque = 0;
+    // }
+
     // Computing angle of attack
     // Angle of attack at 3/4 of propeller radius is representative of entire prop
-    double radius34 = 3.0/4.0 * propeller_.getDiameter() / 2.0;
+    double radius34 = 3.0 / 4.0 * propeller_.getDiameter() / 2.0;
     // Taking absolute value of tan because real_motor_velocity can be negative
     // and tangent is odd.
-    double tan = real_motor_velocity != 0 ? std::abs(std::tan(airspeed/(real_motor_velocity*radius34))) : 0;
+    double tan = real_motor_velocity != 0 ? std::abs(std::tan(airspeed / (real_motor_velocity * radius34))) : 0;
     double aoa = pitch - (std::atan(tan) * 180.0 / M_PI);
-
-    if(!reversible_) {
-        // Not allowed to have negative thrust.
-        thrust = std::abs(thrust);
-    }
 
     // Apply a force to the link.
     link_->AddRelativeForce(ignition::math::Vector3d(0, 0, thrust));
@@ -290,6 +296,9 @@ void GazeboMotorModel::UpdateForcesAndMoments()
     ignition::math::Vector3d drag_torque_parent_frame = pose_difference.Rot().RotateVector(drag_torque);
     parent_links.at(0)->AddRelativeTorque(drag_torque_parent_frame);
 
+    // Torque at joint as motor counter torque
+    // joint_->SetForce(0, torque);
+
     ignition::math::Vector3d rolling_moment;
     // - \omega * \mu_1 * V_A^{\perp}
     rolling_moment = -std::abs(real_motor_velocity) * turning_direction_ * rolling_moment_coefficient_ *
@@ -297,7 +306,7 @@ void GazeboMotorModel::UpdateForcesAndMoments()
     parent_links.at(0)->AddTorque(rolling_moment);
 
     // Every couple iterations publish the state
-    if (ctr++ > 50) {
+    if (send_diagnostics_now && motor_number_ == 0) {
         mav_msgs::msgs::VppState vpp_state_msg;
         vpp_state_msg.set_thrust(thrust);
         vpp_state_msg.set_torque(torque);
@@ -305,34 +314,29 @@ void GazeboMotorModel::UpdateForcesAndMoments()
         vpp_state_msg.set_pitch(pitch);
         vpp_state_msg.set_rpm(rpm);
         vpp_state_msg.set_airspeed(airspeed);
-        vpp_state_msg.set_advance_ratio(airspeed/(rpm*propeller_.getDiameter()));
+        vpp_state_msg.set_advance_ratio(airspeed / (rpm * propeller_.getDiameter()));
         vpp_state_msg.set_motor_index(motor_number_);
-        vpp_state_msg.set_power(std::abs(torque*real_motor_velocity));
-
+        vpp_state_msg.set_power(std::abs(torque * real_motor_velocity));
         vpp_state_pub_->Publish(vpp_state_msg);
-        ctr = 0;
+        send_diagnostics_now = false;
     }
 }
 
 void GazeboMotorModel::UpdateMotorFail()
 {
-    if (motor_number_ == motor_Failure_Number_ - 1)
-    {
+    if (motor_number_ == motor_Failure_Number_ - 1) {
         // motor_constant_ = 0.0;
         joint_->SetVelocity(0, 0);
 
-        if (screen_msg_flag)
-        {
+        if (screen_msg_flag) {
             std::cout << "Motor number [" << motor_Failure_Number_ << "] failed!  [Motor thrust = 0]" << '\n';
             tmp_motor_num = motor_Failure_Number_;
 
             screen_msg_flag = 0;
         }
-    }
-    else if (motor_Failure_Number_ == 0 && motor_number_ == tmp_motor_num - 1)
-    {
-        if (!screen_msg_flag)
-        {
+
+    } else if (motor_Failure_Number_ == 0 && motor_number_ == tmp_motor_num - 1) {
+        if (!screen_msg_flag) {
             // motor_constant_ = kDefaultMotorConstant;
             std::cout << "Motor number [" << tmp_motor_num << "] running! [Motor thrust = (default)]" << '\n';
             screen_msg_flag = 1;
@@ -352,23 +356,23 @@ void GazeboMotorModel::UpdateMotorVelocity()
 {
     use_pid_ = false;
     // Apply the filter on the motor's velocity.
-    double ref_motor_rot_vel = use_pid_ ? ref_motor_rot_vel_ : rotor_velocity_filter_->updateFilter(ref_motor_rot_vel_, sampling_time_);
+    double ref_motor_rot_vel = use_pid_ ? ref_motor_rot_vel_ : rotor_velocity_filter_->updateFilter(ref_motor_rot_vel_,
+                               sampling_time_);
 
 
 
 #if 1 //FIXME: disable PID for now, it does not play nice with the PX4 CI system. NOLINT
-    if (use_pid_)
-    {
+
+    if (use_pid_) {
         double err = joint_->GetVelocity(0) - turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_;
         double rotorForce = pid_.Update(err, sampling_time_);
-        // if (ctr>98) {
+        // if (ctr>20) {
         //     std::cout << "Rotor torque: " << rotorForce << "\n";
         // }
         joint_->SetForce(0, rotorForce);
         // gzerr << "rotor " << joint_->GetName() << " : " << rotorForce << "\n";
-    }
-    else
-    {
+
+    } else {
 #if GAZEBO_MAJOR_VERSION >= 7
         // Not desirable to use SetVelocity for parts of a moving model
         // impact on rest of the dynamic system is non-physical.
@@ -380,6 +384,7 @@ void GazeboMotorModel::UpdateMotorVelocity()
         joint_->SetParam("vel", 0, turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_);
 #endif
     }
+
 #else
     joint_->SetVelocity(0, turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_);
 #endif /* if 0 */
