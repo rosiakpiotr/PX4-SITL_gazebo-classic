@@ -19,7 +19,7 @@
  */
 
 #include <boost/bind.hpp>
-#include <Eigen/Eigen>
+// #include <algorithm>
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
 #include <gazebo/common/common.hh>
@@ -163,6 +163,7 @@ private:
     boost::thread callback_queue_thread_;
     void QueueThread();
     std_msgs::msgs::Float turning_velocity_msg_;
+    mav_msgs::msgs::VppState vpp_state_msg;
     void VelocityCallback(CommandMotorSpeedPtr &rot_velocities);
     void PitchAngleCallback(CommandPitchAnglePtr &pitch_angles);
     void MotorFailureCallback(const boost::shared_ptr<const msgs::Int>

@@ -10,7 +10,7 @@
       <pose>0 0 0.4 0 0 0</pose>
       <inertial>
         <pose>0 0 0.05 0 0 0</pose>
-        <mass>6.5</mass>
+        <mass>2.5</mass>
         <inertia>
           <!-- Rectangular cuboid:
           Ixx = 1/12*(y^2+z^2)
@@ -63,7 +63,25 @@
       <velocity_decay />
       <self_collide>0</self_collide>
     </link>
-    <link name='tailsitter/imu_link'>
+    <!-- <joint name='tailsitter/base_to_world' type='revolute'>
+      <child>base_link</child>
+      <parent>world</parent>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>0</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint> -->
+    <link name='tailsitter_vpp/imu_link'>
       <pose>0 0 0 0 0 0</pose>
       <inertial>
         <pose>0 0 0 0 0 0</pose>
@@ -79,7 +97,7 @@
       </inertial>
     </link>
     <joint name='tailsitter/imu_joint' type='revolute'>
-      <child>tailsitter/imu_link</child>
+      <child>tailsitter_vpp/imu_link</child>
       <parent>base_link</parent>
       <axis>
         <xyz>1 0 0</xyz>
@@ -96,33 +114,6 @@
         <use_parent_model_frame>1</use_parent_model_frame>
       </axis>
     </joint>
-    <!-- <link name='tailsitter/vpp1_virtual'>
-      <pose>0 0 0 0 0 0</pose>
-      <inertial>
-        <pose>0 0 0 0 0 0</pose>
-        <mass>0.015</mass>
-        <inertia>
-          <ixx>1e-05</ixx>
-          <ixy>0</ixy>
-          <ixz>0</ixz>
-          <iyy>1e-05</iyy>
-          <iyz>0</iyz>
-          <izz>1e-05</izz>
-        </inertia>
-      </inertial>
-    </link>
-    <joint name='tailsitter/vpp1_virtual_joint' type='revolute'>
-      <child>tailsitter/vpp1_virtual</child>
-      <parent>world</parent>
-      <axis>
-        <xyz>1 0 0</xyz>
-        <limit>
-          <lower>0</lower>
-          <upper>1</upper>
-        </limit>
-        <use_parent_model_frame>1</use_parent_model_frame>
-      </axis>
-    </joint> -->
     <include>
       <uri>model://airspeed</uri>
       <pose>0 0 0.6 0 -1.57 0</pose>
@@ -574,11 +565,12 @@
       <robotNamespace></robotNamespace>
       <windSubTopic>world_wind</windSubTopic>
     </plugin>
-    <plugin name='rosbag' filename='libgazebo_multirotor_base_plugin.so'>
+    <!-- <plugin name='rosbag' filename='libgazebo_multirotor_base_plugin.so'>
       <robotNamespace></robotNamespace>
       <linkName>base_link</linkName>
       <rotorVelocitySlowdownSim>1</rotorVelocitySlowdownSim>
     </plugin>
+    -->
     <plugin name='front_right_motor_model' filename='libgazebo_motor_vpp.so'>
       <robotNamespace></robotNamespace>
       <jointName>rotor_0_joint</jointName>
@@ -588,6 +580,7 @@
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>628</maxRotVelocity>
       <propDiameterInch>18</propDiameterInch>
+      <reversible>false</reversible>
       <commandSubTopic>/gazebo/command/motor_speed</commandSubTopic>
       <motorNumber>0</motorNumber>
       <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
@@ -604,6 +597,7 @@
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>628</maxRotVelocity>
       <propDiameterInch>18</propDiameterInch>
+      <reversible>false</reversible>
       <commandSubTopic>/gazebo/command/motor_speed</commandSubTopic>
       <motorNumber>1</motorNumber>
       <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
@@ -620,6 +614,7 @@
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>628</maxRotVelocity>
       <propDiameterInch>18</propDiameterInch>
+      <reversible>false</reversible>
       <commandSubTopic>/gazebo/command/motor_speed</commandSubTopic>
       <motorNumber>2</motorNumber>
       <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
@@ -636,6 +631,7 @@
       <timeConstantDown>0.025</timeConstantDown>
       <maxRotVelocity>628</maxRotVelocity>
       <propDiameterInch>18</propDiameterInch>
+      <reversible>false</reversible>
       <commandSubTopic>/gazebo/command/motor_speed</commandSubTopic>
       <motorNumber>3</motorNumber>
       <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
@@ -645,7 +641,7 @@
     </plugin>
     <plugin name='gazebo_imu_plugin' filename='libgazebo_imu_plugin.so'>
       <robotNamespace></robotNamespace>
-      <linkName>tailsitter/imu_link</linkName>
+      <linkName>tailsitter_vpp/imu_link</linkName>
       <imuTopic>/imu</imuTopic>
       <gyroscopeNoiseDensity>0.0003394</gyroscopeNoiseDensity>
       <gyroscopeRandomWalk>3.8785e-05</gyroscopeRandomWalk>

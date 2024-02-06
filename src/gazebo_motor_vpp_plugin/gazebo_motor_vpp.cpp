@@ -57,7 +57,7 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     }
 
     // setup joint control pid to control joint
-    if (_sdf->HasElement("joint_control_pid") || true * 0) { // NOLINT
+    if (_sdf->HasElement("joint_control_pid") || true) { // NOLINT
         sdf::ElementPtr pid = _sdf->GetElement("jointName"); // Changed for anything that is for sure in sdf just so errors gone
 
         auto get_sdf_or_default =
@@ -65,13 +65,13 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
             return elem->HasElement(key) ? elem->Get<double>(key) : default_val;
         };
 
-        pid_.Init(get_sdf_or_default(pid, "__p", 0.0001),
-                  get_sdf_or_default(pid, "__i", 0.00001),
-                  get_sdf_or_default(pid, "__d", 0.00001),
-                  get_sdf_or_default(pid, "__iMax", 1),
-                  get_sdf_or_default(pid, "__iMin", 0),
-                  get_sdf_or_default(pid, "__cmdMax", 1.3),
-                  get_sdf_or_default(pid, "__cmdMin", 0));
+        pid_.Init(get_sdf_or_default(pid, "__p", 0.0035),
+                  get_sdf_or_default(pid, "__i", 0.0001),
+                  get_sdf_or_default(pid, "__d", 0.000001),
+                  get_sdf_or_default(pid, "__iMax", 100),
+                  get_sdf_or_default(pid, "__iMin", -100),
+                  get_sdf_or_default(pid, "__cmdMax", 7.5158),
+                  get_sdf_or_default(pid, "__cmdMin", -1));
         use_pid_ = true;
 
     } else {
@@ -150,10 +150,10 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     motor_failure_sub_ = node_handle_->Subscribe<msgs::Int>(motor_failure_sub_topic_,
                          &GazeboMotorModel::MotorFailureCallback, this);
 
-    vpp_state_pub_ = node_handle_->Advertise<mav_msgs::msgs::VppState>("~/" + model_->GetName() + vpp_state_pub_topic_, 1);
+    vpp_state_pub_ = node_handle_->Advertise<mav_msgs::msgs::VppState>("~/" + model_->GetName() + vpp_state_pub_topic_, 10);
     // FIXME: Commented out to prevent warnings about queue limit reached.
-    motor_velocity_pub_ = node_handle_->Advertise<std_msgs::msgs::Float>("~/" + model_->GetName() + motor_speed_pub_topic_,
-                          1);
+    // motor_velocity_pub_ = node_handle_->Advertise<std_msgs::msgs::Float>("~/" + model_->GetName() + motor_speed_pub_topic_,
+    //                       1);
     wind_sub_ = node_handle_->Subscribe<msgs::Wind>("~/" + wind_sub_topic_, &GazeboMotorModel::WindVelocityCallback, this);
 
     // Create the first order filter.
@@ -162,17 +162,18 @@ void GazeboMotorModel::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf) // N
     vpp_angle_filter_ = std::make_unique<FirstOrderFilter<double>>(0.1, 0.1, ref_prop_pitch_angle_);
 }
 
-static double last_sent_timestamp = 0;
-static bool send_diagnostics_now = true;
+static double last_sent_timestamp = 0; // NOLINT
+static bool send_diagnostics_now = true; // NOLINT
 
 // This gets called by the world update start event.
 void GazeboMotorModel::OnUpdate(const common::UpdateInfo &_info)
 {
-    sampling_time_ = _info.simTime.Double() - prev_sim_time_;
-    prev_sim_time_ = _info.simTime.Double();
-    if ((_info.realTime.Double() - last_sent_timestamp) > 0.01) {
+    auto timenow = _info.simTime.Double();
+    sampling_time_ = timenow - prev_sim_time_;
+    prev_sim_time_ = timenow;
+    if ((_info.simTime.Double() - last_sent_timestamp) > 0.01) {
         send_diagnostics_now = true;
-        last_sent_timestamp = _info.realTime.Double();
+        last_sent_timestamp = _info.simTime.Double();
     }
     UpdateMotorVelocity();
     UpdateForcesAndMoments();
@@ -249,12 +250,6 @@ void GazeboMotorModel::UpdateForcesAndMoments()
         .pitch = pitch
     });
 
-    // if (isnan(real_motor_velocity)) {
-    //     gzerr << "Motor velocity is NaN!!!" << '\n';
-    //     thrust = 0;
-    //     torque = 0;
-    // }
-
     // Computing angle of attack
     // Angle of attack at 3/4 of propeller radius is representative of entire prop
     double radius34 = 3.0 / 4.0 * propeller_.getDiameter() / 2.0;
@@ -306,8 +301,7 @@ void GazeboMotorModel::UpdateForcesAndMoments()
     parent_links.at(0)->AddTorque(rolling_moment);
 
     // Every couple iterations publish the state
-    if (send_diagnostics_now && motor_number_ == 0) {
-        mav_msgs::msgs::VppState vpp_state_msg;
+    if (send_diagnostics_now && (motor_number_ == 0)) {
         vpp_state_msg.set_thrust(thrust);
         vpp_state_msg.set_torque(torque);
         vpp_state_msg.set_aoa(aoa);
@@ -317,8 +311,25 @@ void GazeboMotorModel::UpdateForcesAndMoments()
         vpp_state_msg.set_advance_ratio(airspeed / (rpm * propeller_.getDiameter()));
         vpp_state_msg.set_motor_index(motor_number_);
         vpp_state_msg.set_power(std::abs(torque * real_motor_velocity));
+
+        // using namespace std::chrono;
+
+        // // // Use auto keyword to avoid typing long
+        // // // type definitions to get the timepoint
+        // // // at this instant use function now()
+        // auto start = high_resolution_clock::now();
         vpp_state_pub_->Publish(vpp_state_msg);
         send_diagnostics_now = false;
+
+        // auto stop = high_resolution_clock::now();
+        // auto duration = duration_cast<microseconds>(stop - start);
+
+        // // To get the value of duration use the count()
+        // // member function on the duration object
+        // auto dur = duration.count();
+        // if (dur > 5) {
+        //     std::cout << "UpdateForcesAndMoments() took: " << dur << " microseconds" << '\n';
+        // }
     }
 }
 
@@ -359,18 +370,19 @@ void GazeboMotorModel::UpdateMotorVelocity()
     double ref_motor_rot_vel = use_pid_ ? ref_motor_rot_vel_ : rotor_velocity_filter_->updateFilter(ref_motor_rot_vel_,
                                sampling_time_);
 
-
-
 #if 1 //FIXME: disable PID for now, it does not play nice with the PX4 CI system. NOLINT
 
     if (use_pid_) {
-        double err = joint_->GetVelocity(0) - turning_direction_ * ref_motor_rot_vel / rotor_velocity_slowdown_sim_;
+        auto measVelocity = joint_->GetVelocity(0);
+        double err = -((ref_motor_rot_vel / rotor_velocity_slowdown_sim_) - measVelocity);
+        err *= turning_direction_;
+        // Update max command value so it resembles behaviour of real BLDC motor.
+        pid_.SetCmdMax(std::min(measVelocity * (-0.01) + 7.5158, 7.5158));
         double rotorForce = pid_.Update(err, sampling_time_);
-        // if (ctr>20) {
-        //     std::cout << "Rotor torque: " << rotorForce << "\n";
-        // }
         joint_->SetForce(0, rotorForce);
-        // gzerr << "rotor " << joint_->GetName() << " : " << rotorForce << "\n";
+        if (motor_number_ == 0) {
+            std::cout  << rotorForce << "\t" << measVelocity << "\t" << err << "\n";
+        }
 
     } else {
 #if GAZEBO_MAJOR_VERSION >= 7
