@@ -164,6 +164,8 @@ private:
     void QueueThread();
     std_msgs::msgs::Float turning_velocity_msg_;
     mav_msgs::msgs::VppState vpp_state_msg;
+    double last_sent_timestamp = 0;
+    bool send_diagnostics_now = true;
     void VelocityCallback(CommandMotorSpeedPtr &rot_velocities);
     void PitchAngleCallback(CommandPitchAnglePtr &pitch_angles);
     void MotorFailureCallback(const boost::shared_ptr<const msgs::Int>
